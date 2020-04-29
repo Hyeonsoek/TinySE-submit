@@ -45,21 +45,17 @@ public class ExternalSortTest {
 		
 		File answerFile = new File(classLoader.getResource("answer.data").getFile());
 		DataInputStream resultInputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(resultFile)));
-		DataInputStream answerInputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(URLDecoder.decode(answerFile.getAbsolutePath(),"UTF-8"))));
+		DataInputStream answerInputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(answerFile)));
 
 		assertNotNull(resultInputStream);
 		assertNotNull(answerInputStream);
-
-		try {
-			for (int i = 0; i < 100000; i++) {
-				assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
-				assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
-				assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
-			}
-		} catch (Exception e) {
-			e.getStackTrace();
+		
+		for (int i = 0; i < 100000; i++) {
+			assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
+			assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
+			assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
 		}
-
+		
 		resultInputStream.close();
 		answerInputStream.close();
 	}
