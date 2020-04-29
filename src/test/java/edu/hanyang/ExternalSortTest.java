@@ -7,14 +7,15 @@ import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URLDecoder;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import edu.hanyang.submit.TinySEExternalSort;
 
-@Ignore("Delete this line to unit test stage 2")
 public class ExternalSortTest {
 	@Before
 	public void init() {
@@ -31,6 +32,7 @@ public class ExternalSortTest {
 		int nblocks = 160;
 		ClassLoader classLoader = this.getClass().getClassLoader();
 		File infile = new File(classLoader.getResource("test.data").getFile());
+		
 		String outfile = "./tmp/sorted.data";
 		String tmpdir = "./tmp";
 		File resultFile = new File(outfile);
@@ -43,15 +45,19 @@ public class ExternalSortTest {
 		
 		File answerFile = new File(classLoader.getResource("answer.data").getFile());
 		DataInputStream resultInputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(resultFile)));
-		DataInputStream answerInputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(answerFile)));
+		DataInputStream answerInputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(URLDecoder.decode(answerFile.getAbsolutePath(),"UTF-8"))));
 
 		assertNotNull(resultInputStream);
 		assertNotNull(answerInputStream);
 
-		for (int i = 0; i < 100000; i++) {
-			assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
-			assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
-			assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
+		try {
+			for (int i = 0; i < 100000; i++) {
+				assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
+				assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
+				assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
+			}
+		} catch (Exception e) {
+			e.getStackTrace();
 		}
 
 		resultInputStream.close();

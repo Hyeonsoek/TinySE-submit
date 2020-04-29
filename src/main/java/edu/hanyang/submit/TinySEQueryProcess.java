@@ -3,7 +3,6 @@ package edu.hanyang.submit;
 import java.io.IOException;
 
 import edu.hanyang.indexer.DocumentCursor;
-import edu.hanyang.indexer.PositionCursor;
 import edu.hanyang.indexer.IntermediateList;
 import edu.hanyang.indexer.IntermediatePositionalList;
 import edu.hanyang.indexer.QueryPlanTree;
