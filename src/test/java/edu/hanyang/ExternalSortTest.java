@@ -4,14 +4,13 @@ import static org.junit.Assert.*;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URLDecoder;
 
-import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import edu.hanyang.submit.TinySEExternalSort;
@@ -45,15 +44,19 @@ public class ExternalSortTest {
 		
 		File answerFile = new File(classLoader.getResource("answer.data").getFile());
 		DataInputStream resultInputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(resultFile)));
-		DataInputStream answerInputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(answerFile)));
+		DataInputStream answerInputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(URLDecoder.decode(answerFile.getAbsolutePath(),"UTF-8"))));
 
 		assertNotNull(resultInputStream);
 		assertNotNull(answerInputStream);
 		
-		for (int i = 0; i < 100000; i++) {
-			assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
-			assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
-			assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
+		try {
+			for (int i = 0; i < 100000; i++) {
+				assertEquals(resultInputStream.readInt(), answerInputStream.readInt());
+				assertEquals(resultInputStream.readInt(),answerInputStream.readInt());
+				assertEquals(resultInputStream.readInt(),answerInputStream.readInt());
+			}
+		} catch (EOFException e) {
+			e.getStackTrace();
 		}
 		
 		resultInputStream.close();
