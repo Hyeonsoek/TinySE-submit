@@ -1,6 +1,7 @@
 package edu.hanyang.submit;
 
 import java.io.*;
+import java.lang.instrument.Instrumentation;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -47,12 +48,13 @@ public class TinySEExternalSort implements ExternalSort {
 						return 1;
 					else return 0;
 				}
-			}		}
-		
+			}
+		}
 	}
 
 	public void sort(String infile, String outfile, String tmpdir, int blocksize, int nblocks) throws IOException {
 		// complete the method
+		
 		infile = URLDecoder.decode(infile, "UTF-8");
 		outfile = URLDecoder.decode(outfile, "UTF-8");
 		
@@ -74,10 +76,12 @@ public class TinySEExternalSort implements ExternalSort {
 		File tmpFile;
 		String runs;
 		DataOutputStream tmpOs;
+		List< Triple<Integer,Integer,Integer> > list = new ArrayList< Triple<Integer,Integer,Integer> >();
 		
-		int entrySize = blocksize / 12;
-		blocksize = entrySize * 12;
-		int fileNum = (int) Math.ceil(file.length() / (blocksize * nblocks));
+		int entryCnt = blocksize / 12;
+		blocksize = entryCnt * 12;
+		int fileNum = (int) Math.ceil((float)file.length() / (blocksize * nblocks));
+		int entryCntBlock = entryCnt * nblocks;
 		
 		System.out.println("File Num : " + fileNum + ", FileSize : " + file.length() + ", BlockSize : " + blocksize);
 		
@@ -88,12 +92,10 @@ public class TinySEExternalSort implements ExternalSort {
 						new FileOutputStream(tmpFile), blocksize)
 					);
 			
-			List< Triple<Integer,Integer,Integer> > list = 
-					new ArrayList< Triple<Integer,Integer,Integer> >();
-			
-			for(int cnt = 0; cnt < entrySize * nblocks; ++cnt)
+			for(int cnt = 0; cnt < entryCntBlock; ++cnt) {
 				if(is.available() > 0)
 					list.add(readTripleInt(is));
+			}
 			
 			list.sort(new Comparator< Triple<Integer,Integer,Integer> >() {
 
@@ -125,6 +127,7 @@ public class TinySEExternalSort implements ExternalSort {
 				tmpOs.writeInt(e.getRight());
 			}
 			
+			list.clear();
 			tmpOs.flush();
 			tmpOs.close();
 		}
@@ -141,10 +144,11 @@ public class TinySEExternalSort implements ExternalSort {
 		int tupleBlockSize = (blocksize/12);
 		List<String> list = new ArrayList<String>();
 		
-		for(int pre = runsCount, nextFileNum = 0, step = 0; pre > 2; nextFileNum = 0, step++) {
+		for(int pre = runsCount, nextFileNum = 0, step = 0; pre > 1; nextFileNum = 0, step++) {
 			
 			System.out.println("Starting PRE : " + pre + ", STEP : " + step);
 			
+			int nowRuns = pre;
 			int out_idx = 0;
 			int stackFileNum = 0;
 			
@@ -153,17 +157,19 @@ public class TinySEExternalSort implements ExternalSort {
 			
 			while(pre > 0) {
 				int FreeMemory = (int)Runtime.getRuntime().freeMemory();
-				nextWayNum = (int) ((FreeMemory / blocksize) - 1);
-				if( nextWayNum <= 1) nextWayNum++;
-				if( nextWayNum >= pre) nextWayNum = pre-1;
+				nextWayNum = 5;
 				
-				System.out.println("\t\t PRE : " + pre + ", nextWayNum : " + nextWayNum + ", FreeMemory : " + FreeMemory);
+				if(pre <= nextWayNum) nextWayNum = pre;
+				
+				System.out.println("\t\t PRE : " + pre + ", nextWayNum : " + nextWayNum);
 				
 				for(int idx = 0; idx < nextWayNum; idx++)
 					list.add(tmpdir + "/" + (step == 0 ? "init" : step )  + "/runs_" + ((idx + stackFileNum) < 10 ? "0" : "") + (idx + stackFileNum) + ".data");
 				
-				String out = tmpdir + "/" + (step+1) + "/runs_" + (out_idx < 10 ? "0" : "") + out_idx + ".data";
-				if(pre == runsCount) out = outfile;
+				String out = tmpdir + "/" + (step+1) + "/runs_" + (out_idx < 10 ? "0" : "") + (out_idx++) + ".data";
+				
+				if(nowRuns == nextWayNum)
+					out = outfile;
 				
 				nextFileNum++;
 				stackFileNum += nextWayNum;
@@ -175,8 +181,9 @@ public class TinySEExternalSort implements ExternalSort {
 			
 			pre = nextFileNum;
 			
-			System.out.println("End PRE : " + pre + ", nextFileNum : " + nextFileNum);
+			//System.out.println("End PRE : " + pre + ", nextFileNum : " + nextFileNum);
 		}
+		
 	}
 	
 	public void NWayMerge(int blocksize, int nblocks, List<String> input, String out) throws IOException {
@@ -223,13 +230,16 @@ public class TinySEExternalSort implements ExternalSort {
 			
 			tempTuple = pq.poll();
 			
+			//System.out.println("first : " + tempTuple.X.getLeft() + ", second : " + tempTuple.X.getMiddle() + ", third : " + tempTuple.X.getRight());
+			
 			os.writeInt(tempTuple.X.getLeft());
 			os.writeInt(tempTuple.X.getMiddle());
 			os.writeInt(tempTuple.X.getRight());
 			 
 			if(islist.containsKey(tempTuple.idx) && islist.get(tempTuple.idx).available() > 0)
-					pq.add(new Tuple(readTripleInt(islist.get(tempTuple.idx)),tempTuple.idx));
+				pq.add(new Tuple(readTripleInt(islist.get(tempTuple.idx)),tempTuple.idx));
 		}
+		
 		
 		os.flush();
 		os.close();
