@@ -15,8 +15,6 @@ import edu.hanyang.indexer.ExternalSort;
 
 public class TinySEExternalSort implements ExternalSort {
 	
-	
-	
 	class Tuple implements Comparable<Tuple> {
 		int idx;
 		Triple< Integer, Integer, Integer> X;
@@ -253,6 +251,5 @@ public class TinySEExternalSort implements ExternalSort {
 			right = is.readInt();
 			System.out.println(left+", "+mid+", "+right);
 		}
-		
 	}
 }
