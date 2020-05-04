@@ -59,10 +59,7 @@ public class TinySEExternalSort implements ExternalSort {
 		
 		infile = URLDecoder.decode(infile, "UTF-8");
 		outfile = URLDecoder.decode(outfile, "UTF-8");
-		
-		System.out.println("Infile : " + infile);
-		System.out.println("Outfile : " + outfile);
-		
+
 		File tmpfile = new File(tmpdir);
 		File file = new File(infile);
 		File initfile = new File(tmpdir + "/init");
@@ -89,9 +86,8 @@ public class TinySEExternalSort implements ExternalSort {
 		if(entryCntBlock > maxListTriple)
 		{ entryCntBlock = maxListTriple; }
 
-		int fileNum = (int) (file.length() / (entryCntBlock*12));
-		
-		System.out.println("entryCntBlock : " + entryCntBlock + ", fileNum : " + fileNum);
+		int fileNum = (int) (file.length() / (entryCntBlock*12)) + 1;
+		Long fileSize = file.length();
 		
 		for(int index = 0; index < fileNum; ++index) {
 			runs =  tmpdir + "/init/runs_" + (index < 10 ? "0" + index : index) + ".data";
@@ -100,12 +96,8 @@ public class TinySEExternalSort implements ExternalSort {
 						new FileOutputStream(tmpFile), blocksize)
 					);
 			
-			System.out.println("index : " + index + ", start");
-			
-			for(int cnt = 0; cnt < entryCntBlock; ++cnt)
-				list.add(Triple.of(is.readInt(), is.readInt(), is.readInt()));
-			
-			System.out.println("index : " + index + ", End");
+			for(int cnt = 0; cnt < entryCntBlock && fileSize > 0; ++cnt,fileSize -= 12)
+			{ list.add(Triple.of(is.readInt(), is.readInt(), is.readInt())); }
 			
 			list.sort(ts);
 			
@@ -120,29 +112,7 @@ public class TinySEExternalSort implements ExternalSort {
 			tmpOs.close();
 		}
 		
-		while(is.available() > 0)
-			list.add(Triple.of(is.readInt(), is.readInt(), is.readInt()));
-		
-		Collections.sort(list, ts);
-		
-		runs =  tmpdir + "/init/runs_" + (fileNum < 10 ? "0" + fileNum : fileNum) + ".data";
-		tmpFile = new File(runs);
-		tmpOs = new DataOutputStream( new BufferedOutputStream (
-					new FileOutputStream(tmpFile), blocksize)
-				);
-		
-		for(Triple<Integer,Integer,Integer> e : list) {
-			tmpOs.writeInt(e.getLeft());
-			tmpOs.writeInt(e.getMiddle());
-			tmpOs.writeInt(e.getRight());
-		}
-		
-		list.clear();
-		tmpOs.flush();
-		tmpOs.close();
-		
-		
-		mergingAll(fileNum+1, blocksize, nblocks, tmpdir, outfile);
+		mergingAll(fileNum, blocksize, nblocks, tmpdir, outfile);
 		
 		is.close();
 	}
@@ -185,7 +155,6 @@ public class TinySEExternalSort implements ExternalSort {
 			
 			pre = nextFileNum;
 			
-			//System.out.println("End PRE : " + pre + ", nextFileNum : " + nextFileNum);
 		}
 		
 	}
