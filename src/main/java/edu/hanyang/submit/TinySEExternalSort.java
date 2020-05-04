@@ -1,16 +1,10 @@
 package edu.hanyang.submit;
 
 import java.io.*;
+import java.util.*;
 import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.PriorityQueue;
-import java.util.Set;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 
 import edu.hanyang.indexer.ExternalSort;
@@ -95,9 +89,9 @@ public class TinySEExternalSort implements ExternalSort {
 		if(entryCntBlock > maxListTriple)
 		{ entryCntBlock = maxListTriple; }
 
-		int fileNum = (int) (file.length() / (maxListTriple*12));
+		int fileNum = (int) (file.length() / (entryCntBlock*12));
 		
-		System.out.println("entryCntBlock : " + entryCntBlock);
+		System.out.println("entryCntBlock : " + entryCntBlock + ", fileNum : " + fileNum);
 		
 		for(int index = 0; index < fileNum; ++index) {
 			runs =  tmpdir + "/init/runs_" + (index < 10 ? "0" + index : index) + ".data";
@@ -106,10 +100,14 @@ public class TinySEExternalSort implements ExternalSort {
 						new FileOutputStream(tmpFile), blocksize)
 					);
 			
+			System.out.println("index : " + index + ", start");
+			
 			for(int cnt = 0; cnt < entryCntBlock; ++cnt)
 				list.add(Triple.of(is.readInt(), is.readInt(), is.readInt()));
 			
-			Collections.sort(list, ts);
+			System.out.println("index : " + index + ", End");
+			
+			list.sort(ts);
 			
 			for(Triple<Integer,Integer,Integer> e : list) {
 				tmpOs.writeInt(e.getLeft());
@@ -120,28 +118,29 @@ public class TinySEExternalSort implements ExternalSort {
 			list.clear();
 			tmpOs.flush();
 			tmpOs.close();
-			
 		}
 		
 		while(is.available() > 0)
 			list.add(Triple.of(is.readInt(), is.readInt(), is.readInt()));
+		
+		Collections.sort(list, ts);
+		
 		runs =  tmpdir + "/init/runs_" + (fileNum < 10 ? "0" + fileNum : fileNum) + ".data";
 		tmpFile = new File(runs);
 		tmpOs = new DataOutputStream( new BufferedOutputStream (
 					new FileOutputStream(tmpFile), blocksize)
 				);
 		
-		list.sort(ts);
-		
 		for(Triple<Integer,Integer,Integer> e : list) {
 			tmpOs.writeInt(e.getLeft());
 			tmpOs.writeInt(e.getMiddle());
 			tmpOs.writeInt(e.getRight());
 		}
-			
+		
 		list.clear();
 		tmpOs.flush();
 		tmpOs.close();
+		
 		
 		mergingAll(fileNum+1, blocksize, nblocks, tmpdir, outfile);
 		
@@ -195,7 +194,7 @@ public class TinySEExternalSort implements ExternalSort {
 		
 		File outfile = new File(out);
 		PriorityQueue<Tuple> pq = new PriorityQueue<Tuple>();
-		HashMap<Integer, DataInputStream> islist = new HashMap<Integer, DataInputStream>();
+		HashMap<Integer, Pair<DataInputStream, Long>> islist = new HashMap<Integer, Pair<DataInputStream, Long>>();
 		DataOutputStream os = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(outfile), blocksize));
 		
 		File tmpfile;
@@ -208,18 +207,9 @@ public class TinySEExternalSort implements ExternalSort {
 			
 			if(tmpfile.exists()) {
 				tempis = new DataInputStream(new BufferedInputStream(new FileInputStream(tmpfile), blocksize));
-				islist.put(index, tempis);
+				pq.add(new Tuple(Triple.of(tempis.readInt(), tempis.readInt(), tempis.readInt()), index));
+				islist.put(index, Pair.of(tempis, tmpfile.length()-12));
 			}
-		}
-		
-		int getAvailable;
-		
-		Set< Entry<Integer, DataInputStream> > list = islist.entrySet();
-		for(Entry<Integer, DataInputStream> entry : list) {
-			getAvailable = entry.getValue().available();
-			
-			if(getAvailable > 0)
-				pq.add(new Tuple(Triple.of(entry.getValue().readInt(), entry.getValue().readInt(), entry.getValue().readInt()), entry.getKey()));
 		}
 		
 		Tuple tempTuple;
@@ -231,8 +221,17 @@ public class TinySEExternalSort implements ExternalSort {
 			os.writeInt(tempTuple.X.getMiddle());
 			os.writeInt(tempTuple.X.getRight());
 			
-			if(islist.containsKey(tempTuple.idx) && islist.get(tempTuple.idx).available() > 0) {
-				tempTuple.setTuple(Triple.of(islist.get(tempTuple.idx).readInt(), islist.get(tempTuple.idx).readInt(), islist.get(tempTuple.idx).readInt()));
+			
+			
+			if(islist.containsKey(tempTuple.idx) && islist.get(tempTuple.idx).getRight() > 0) {
+				tempTuple.setTuple(
+						Triple.of(
+								islist.get(tempTuple.idx).getLeft().readInt(),
+								islist.get(tempTuple.idx).getLeft().readInt(),
+								islist.get(tempTuple.idx).getLeft().readInt()
+						)
+				);
+				islist.replace(tempTuple.idx, Pair.of(islist.get(tempTuple.idx).getLeft(), islist.get(tempTuple.idx).getRight() - 12));
 				pq.add(tempTuple);
 			}
 		}
