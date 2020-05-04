@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.PriorityQueue;
+import java.util.Set;
 
 import org.apache.commons.lang3.tuple.Triple;
 
@@ -84,7 +85,7 @@ public class TinySEExternalSort implements ExternalSort {
 		String runs;
 		DataOutputStream tmpOs;
 		triplesort ts = new triplesort();
-		ArrayList< Triple<Integer,Integer,Integer> > list;
+		ArrayList< Triple<Integer,Integer,Integer> > list = new ArrayList< Triple<Integer,Integer,Integer> >();
 		
 		int entryCnt = blocksize / 12;
 		blocksize = entryCnt * 12;
@@ -94,7 +95,7 @@ public class TinySEExternalSort implements ExternalSort {
 		if(entryCntBlock > maxListTriple)
 		{ entryCntBlock = maxListTriple; }
 
-		int fileNum = (int) Math.ceil((float)file.length() / (maxListTriple*12));
+		int fileNum = (int) (file.length() / (maxListTriple*12));
 		
 		System.out.println("entryCntBlock : " + entryCntBlock);
 		
@@ -104,13 +105,9 @@ public class TinySEExternalSort implements ExternalSort {
 			tmpOs = new DataOutputStream( new BufferedOutputStream (
 						new FileOutputStream(tmpFile), blocksize)
 					);
-			list = new ArrayList< Triple<Integer,Integer,Integer> >();
 			
-			for(int cnt = 0; cnt < entryCntBlock; ++cnt) {
-				if(is.available() > 0) {
-					list.add(readTripleInt(is));
-				} else break;
-			}
+			for(int cnt = 0; cnt < entryCntBlock; ++cnt)
+				list.add(Triple.of(is.readInt(), is.readInt(), is.readInt()));
 			
 			Collections.sort(list, ts);
 			
@@ -126,7 +123,27 @@ public class TinySEExternalSort implements ExternalSort {
 			
 		}
 		
-		mergingAll(fileNum, blocksize, nblocks, tmpdir, outfile);
+		while(is.available() > 0)
+			list.add(Triple.of(is.readInt(), is.readInt(), is.readInt()));
+		runs =  tmpdir + "/init/runs_" + (fileNum < 10 ? "0" + fileNum : fileNum) + ".data";
+		tmpFile = new File(runs);
+		tmpOs = new DataOutputStream( new BufferedOutputStream (
+					new FileOutputStream(tmpFile), blocksize)
+				);
+		
+		list.sort(ts);
+		
+		for(Triple<Integer,Integer,Integer> e : list) {
+			tmpOs.writeInt(e.getLeft());
+			tmpOs.writeInt(e.getMiddle());
+			tmpOs.writeInt(e.getRight());
+		}
+			
+		list.clear();
+		tmpOs.flush();
+		tmpOs.close();
+		
+		mergingAll(fileNum+1, blocksize, nblocks, tmpdir, outfile);
 		
 		is.close();
 	}
@@ -184,7 +201,8 @@ public class TinySEExternalSort implements ExternalSort {
 		File tmpfile;
 		String fileName;
 		DataInputStream tempis;
-		for(int index = 0; index < input.size(); index++) {
+		int inputSize = input.size();
+		for(int index = 0; index < inputSize; index++) {
 			fileName = input.get(index);
 			tmpfile = new File(fileName);
 			
@@ -196,12 +214,12 @@ public class TinySEExternalSort implements ExternalSort {
 		
 		int getAvailable;
 		
-		
-		for(Entry<Integer, DataInputStream> entry : islist.entrySet()) {
+		Set< Entry<Integer, DataInputStream> > list = islist.entrySet();
+		for(Entry<Integer, DataInputStream> entry : list) {
 			getAvailable = entry.getValue().available();
 			
 			if(getAvailable > 0)
-				pq.add(new Tuple(readTripleInt(entry.getValue()), entry.getKey()));
+				pq.add(new Tuple(Triple.of(entry.getValue().readInt(), entry.getValue().readInt(), entry.getValue().readInt()), entry.getKey()));
 		}
 		
 		Tuple tempTuple;
@@ -212,9 +230,9 @@ public class TinySEExternalSort implements ExternalSort {
 			os.writeInt(tempTuple.X.getLeft());
 			os.writeInt(tempTuple.X.getMiddle());
 			os.writeInt(tempTuple.X.getRight());
-			 
+			
 			if(islist.containsKey(tempTuple.idx) && islist.get(tempTuple.idx).available() > 0) {
-				tempTuple.setTuple(readTripleInt(islist.get(tempTuple.idx)));
+				tempTuple.setTuple(Triple.of(islist.get(tempTuple.idx).readInt(), islist.get(tempTuple.idx).readInt(), islist.get(tempTuple.idx).readInt()));
 				pq.add(tempTuple);
 			}
 		}
@@ -223,21 +241,4 @@ public class TinySEExternalSort implements ExternalSort {
 		os.close();
 	}
 
-
-	public Triple<Integer, Integer, Integer> readTripleInt(DataInputStream is) throws IOException {
-		
-		return Triple.of(is.readInt(), is.readInt(), is.readInt());
-		
-	}
-	
-	public void readPrint(DataInputStream is) throws IOException {
-		
-		int left; int mid = 0; int right = 0;
-		while(is.available() > 0) {
-			left = is.readInt();
-			mid = is.readInt();
-			right = is.readInt();
-			System.out.println(left+", "+mid+", "+right);
-		}
-	}
 }
