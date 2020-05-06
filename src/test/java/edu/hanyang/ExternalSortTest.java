@@ -27,7 +27,7 @@ public class ExternalSortTest {
 	
 	@Test
 	public void TestSort() throws IOException {
-		int blocksize = 8096;
+		int blocksize = 4048;
 		int nblocks = 2000;
 		
 		ClassLoader classLoader = this.getClass().getClassLoader();

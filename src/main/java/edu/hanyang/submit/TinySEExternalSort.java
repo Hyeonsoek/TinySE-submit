@@ -92,12 +92,17 @@ public class TinySEExternalSort implements ExternalSort {
 		for(int index = 0; index < fileNum; ++index) {
 			runs =  tmpdir + "/init/runs_" + (index < 10 ? "0" + index : index) + ".data";
 			tmpFile = new File(runs);
-			tmpOs = new DataOutputStream( new BufferedOutputStream (
-						new FileOutputStream(tmpFile), blocksize)
+			tmpOs = new DataOutputStream(
+						new BufferedOutputStream (
+								new FileOutputStream(tmpFile), blocksize
+						)
 					);
 			
-			for(int cnt = 0; cnt < entryCntBlock && fileSize > 0; ++cnt,fileSize -= 12)
-			{ list.add(Triple.of(is.readInt(), is.readInt(), is.readInt())); }
+			for(int cnt = 0; cnt < entryCntBlock && fileSize > 0; ++cnt,fileSize -= 12){
+				list.add(
+					Triple.of(is.readInt(), is.readInt(), is.readInt())
+				);
+			}
 			
 			list.sort(ts);
 			
@@ -107,9 +112,11 @@ public class TinySEExternalSort implements ExternalSort {
 				tmpOs.writeInt(e.getRight());
 			}
 			
-			list.clear();
 			tmpOs.flush();
 			tmpOs.close();
+			
+			list.clear();
+			System.gc();
 		}
 		
 		mergingAll(fileNum, blocksize, nblocks, tmpdir, outfile);
@@ -189,8 +196,6 @@ public class TinySEExternalSort implements ExternalSort {
 			os.writeInt(tempTuple.X.getLeft());
 			os.writeInt(tempTuple.X.getMiddle());
 			os.writeInt(tempTuple.X.getRight());
-			
-			
 			
 			if(islist.containsKey(tempTuple.idx) && islist.get(tempTuple.idx).getRight() > 0) {
 				tempTuple.setTuple(
