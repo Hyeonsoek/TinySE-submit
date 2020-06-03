@@ -19,49 +19,44 @@ public class TinySEBPlusTree implements BPlusTree{
    
 	@Override
 	public void close() {
-		// TODO Auto-generated method stub
+		
 		try {
+			metaAccess.close();
 			treeAccess.close();
-		} catch (IOException e) {
-			System.out.println(e);
 		}
+		catch (IOException e) {
+			e.getStackTrace();
+		}
+	
 	}
 
 	@Override
 	public void insert(int key, int value) {
-		// TODO Auto-generated method stub
+	
+		Node insert = searchNode(key);
 		
-		LinkedList<Integer> tempKeys;
-		LinkedList<Integer> tempPtr;
+		LinkedList<Integer> keys = insert.getkeys();
+		LinkedList<Integer> ptrs = insert.getpointer();
+		int lastidx = 0;
+		int keySize = keys.size();
 		
-		Node find = findNode(key);
-		
-		tempKeys = find.getkeys();
-		tempPtr = find.getpointer();
-
-		int keysSize = tempKeys.size();
-		int tmppos = 0;
-		
-		for(int index = 0; index < keysSize-1; index++) {
-			if( key < tempKeys.get(index) ) {
-				tempKeys.add(index, key);
-				
+		for(int idx = 0; idx < keySize; ++idx) {
+			if(key < keys.get(idx)) {
+				keys.add(idx, key);
+				lastidx = idx;
 				break;
 			}
 		}
 		
-		if(tempKeys.size() > this.fanout)
-			splitNode(find);
+		if(key > keys.get(keySize-1)) {
+			lastidx = keySize;
+			keys.add(key);
+		}
 		
-		try {
-			
-			treeAccess.seek(tmppos);
-			treeAccess.writeInt(value);
-			
-		} catch(IOException e) {
-			
-			System.out.println(e);
+		insert.setKeys(keys);
 		
+		if(keySize + 1 > fanout) {
+			splitNode(insert);
 		}
 		
 	}
@@ -69,13 +64,6 @@ public class TinySEBPlusTree implements BPlusTree{
 	public void splitNode(Node node) {
 		
 		
-		
-	}
-	
-	public void writNode(Node node) {
-		
-		
-		ByteBuffer metabb;
 		
 	}
 
@@ -108,27 +96,23 @@ public class TinySEBPlusTree implements BPlusTree{
    	@Override
    	public int search(int arg0) {
    		
-   		Node node = findNode(arg0);
+   		Node node = searchNode(arg0);
    		
    		LinkedList<Integer> tmpKey = node.getkeys();
    		LinkedList<Integer> tmpPtr = node.getpointer();
    		
    		for(int idx = 0; idx < fanout; idx++) {
-   			
    			if(arg0 == tmpKey.get(idx)) {
-   				
    				try {
    					
    					treeAccess.seek(tmpPtr.get(idx));
    					return treeAccess.readInt();
    					
    				}
-   				
    				catch (IOException e) {
    					e.getStackTrace();
    				}
    			}
-   			
    		}
    		
    		return -1;
@@ -144,14 +128,10 @@ public class TinySEBPlusTree implements BPlusTree{
    			LinkedList<Integer> ptrs = node.getpointer();
    			
    			for(int idx = 0; idx < fanout; idx++) {
-   				
    				if(key < keys.get(idx)) {
-   					
    					node = findNode(ptrs.get(idx));
    					break;
-   				
    				}
-   				
    			}
    			
    			if(key >= keys.get(fanout-1))
@@ -183,7 +163,7 @@ public class TinySEBPlusTree implements BPlusTree{
 			ByteBuffer nodebb = ByteBuffer.wrap(nodeValues);
 			
 			// µ•¿Ã≈Õ ¿Œ«≤
-			for(int idx = 0; idx < fanout; idx++) {
+			for(int idx = 0; idx < keySize; idx++) {
 				ptrs.add(nodebb.getInt());
 				keys.add(nodebb.getInt());
 			}
@@ -199,6 +179,11 @@ public class TinySEBPlusTree implements BPlusTree{
    		return node;
    	}
    	
+	public void writNode(Node node) {
+		
+		ByteBuffer metabb;
+		
+	}
    
    	public class Node {
       
