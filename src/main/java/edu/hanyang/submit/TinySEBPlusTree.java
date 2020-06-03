@@ -11,7 +11,7 @@ public class TinySEBPlusTree implements BPlusTree{
 	int blocksize;
 	int nblocks;
 	int fanout;
-	int lastInput = 0;
+	int listSize;
 	
 	Node root;
 	RandomAccessFile metaAccess;
@@ -46,8 +46,6 @@ public class TinySEBPlusTree implements BPlusTree{
 			if( key < tempKeys.get(index) ) {
 				tempKeys.add(index, key);
 				
-				if(find.leaf)
-					tempPtr.add(index + 1, tmppos = find.getPosition() + (index+1) * 4);
 				break;
 			}
 		}
@@ -73,6 +71,13 @@ public class TinySEBPlusTree implements BPlusTree{
 		
 		
 	}
+	
+	public void writNode(Node node) {
+		
+		
+		ByteBuffer metabb;
+		
+	}
 
 	@Override
 	public void open(String meta, String source, int blocksize, int nblocks)  {
@@ -96,7 +101,7 @@ public class TinySEBPlusTree implements BPlusTree{
 
 	   	this.blocksize = blocksize;
 	   	this.nblocks = nblocks;
-	   	this.fanout = blocksize / 4 / 2;
+	   	fanout = ((blocksize / 4) - 3) / 2;
 	   	root = new Node();
    	}
 
@@ -108,26 +113,20 @@ public class TinySEBPlusTree implements BPlusTree{
    		LinkedList<Integer> tmpKey = node.getkeys();
    		LinkedList<Integer> tmpPtr = node.getpointer();
    		
-   		int keySize = tmpKey.size();
-   		for(int idx = 0; idx < keySize; idx++) {
+   		for(int idx = 0; idx < fanout; idx++) {
    			
    			if(arg0 == tmpKey.get(idx)) {
    				
-   				int ret = 0;
-   				int seek = tmpPtr.get(idx);
-   				
    				try {
    					
-   					treeAccess.seek(seek);
-   					ret = treeAccess.readInt();
+   					treeAccess.seek(tmpPtr.get(idx));
+   					return treeAccess.readInt();
    					
    				}
-   				catch (IOException e) {
-   					System.out.println(e);
-   				}
    				
-   				return ret;
-   			
+   				catch (IOException e) {
+   					e.getStackTrace();
+   				}
    			}
    			
    		}
@@ -135,54 +134,96 @@ public class TinySEBPlusTree implements BPlusTree{
    		return -1;
    	}
    	
-   	public Node findNode(int key) {
+   	public Node searchNode(int key) {
    		
    		Node ret = null;
    		
-   		for(Node node = root; node.leaf;) {
+   		for(Node node = root; node.leaf == 1; ret = node) {
    			
    			LinkedList<Integer> keys = node.getkeys();
-   			LinkedList<Node> child = node.getchild();
-   			boolean last = true;
+   			LinkedList<Integer> ptrs = node.getpointer();
    			
-   			int keysSize = keys.size();
-   			for(int idx = 0; idx < keysSize; idx++) {
+   			for(int idx = 0; idx < fanout; idx++) {
    				
    				if(key < keys.get(idx)) {
-   					node = child.get(idx);
-   					last = false;
+   					
+   					node = findNode(ptrs.get(idx));
+   					break;
+   				
    				}
    				
    			}
    			
-   			if(last) 
-   				node = child.get(keysSize + 1);
+   			if(key >= keys.get(fanout-1))
+   				node = findNode(ptrs.get(fanout));
    			
    		}
    		
+   		
    		return ret;
    	}
+   	
+   	public Node findNode(int address) {
+   		
+   		Node node = null;
+   		
+   		try {
+   			
+   			LinkedList<Integer> ptrs = new LinkedList<Integer>();
+			LinkedList<Integer> keys = new LinkedList<Integer>();
+			
+			metaAccess.seek(address);
+			int keySize = treeAccess.readInt();
+			int leaf = treeAccess.readInt();
+			int parent = treeAccess.readInt();
+			byte[] nodeValues = new byte[(keySize * 2 + 3) * 4];
+			
+			treeAccess.seek(address);
+			treeAccess.read(nodeValues);
+			ByteBuffer nodebb = ByteBuffer.wrap(nodeValues);
+			
+			// 데이터 인풋
+			for(int idx = 0; idx < fanout; idx++) {
+				ptrs.add(nodebb.getInt());
+				keys.add(nodebb.getInt());
+			}
+			ptrs.add(nodebb.getInt());
+   			
+			node = new Node(keys,ptrs, leaf, parent);
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+   		
+   		
+   		return node;
+   	}
+   	
    
    	public class Node {
       
-   		// position : 이 노드의 파일상 위치
    		// leaf : 리프노드인지 확인 하기
-   		// child : 아이 노드들의 위치
+   		// parent : 부모의 파일상 위치
+   		// pointer : 자식 노드 파일상 위치값
+   		// pointer의 0번째가 Node의 위치임
    		// keys : key들의 값
-   		int position;
-   		boolean leaf;
-   		Node parent;
+   		int leaf;
+   		int parent;
    		LinkedList<Integer> pointer;
    		LinkedList<Integer> keys;
-   		LinkedList<Node> child;
    		
    		public Node() {
-   			this.position = 0;
-   			this.leaf = true;
+   			this.leaf = 1;
+   			this.parent = -1;
    			this.keys = new LinkedList<Integer>();
    			this.pointer = new LinkedList<Integer>();
-   			this.child = new LinkedList<Node>();
-   			this.parent = null;
+   		}
+   		
+   		public Node(LinkedList<Integer> keys, LinkedList<Integer> ptr,  int leaf, int parent) {
+   			this.parent = parent;
+   			this.leaf = leaf;
+   			this.pointer = ptr;
+   			this.keys = keys;
    		}
    		
    		public void setKeys(LinkedList<Integer> keys) {
@@ -193,12 +234,8 @@ public class TinySEBPlusTree implements BPlusTree{
    			this.pointer = pointer;
    		}
    		
-   		public void setleaf(boolean leaf) {
+   		public void setleaf(int leaf) {
    			this.leaf = leaf;
-   		}
-   		
-   		public int getPosition() {
-   			return position;
    		}
    		
    		public LinkedList<Integer> getpointer() {
@@ -207,10 +244,6 @@ public class TinySEBPlusTree implements BPlusTree{
    		
    		public LinkedList<Integer> getkeys() {
    			return keys;
-   		}
-   		
-   		public LinkedList<Node> getchild() {
-   			return child;
    		}
    	}
 }
