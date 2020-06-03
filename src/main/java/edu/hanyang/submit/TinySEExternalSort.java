@@ -1,11 +1,8 @@
 package edu.hanyang.submit;
 
 import java.io.*;
+import java.util.*;
 import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.PriorityQueue;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
@@ -13,17 +10,59 @@ import org.apache.commons.lang3.tuple.Triple;
 import edu.hanyang.indexer.ExternalSort;
 
 public class TinySEExternalSort implements ExternalSort {
+	
+	class Tuple implements Comparable<Tuple> {
+		public int idx;
+		public Triple< Integer, Integer, Integer> X;
+				
+		public Tuple(Triple< Integer, Integer, Integer> X, int index) {
+			this.X = X;
+			this.idx = index;
+		}
 
-	private Triple<Integer, Integer, Integer> triple;
+		public void setTuple(Triple< Integer, Integer, Integer> X) {
+			this.X = X;
+		}
+		
+		@Override
+		public int compareTo(Tuple o) {
+			return X.compareTo(o.X);
+		}
+	}
 
+	class triplesort implements Comparator< Triple<Integer,Integer,Integer> > {
+		@Override
+		public int compare(Triple<Integer, Integer, Integer> o1, Triple<Integer, Integer, Integer> o2) {
+			if(o1.getLeft() < o2.getLeft())
+				return -1;
+			else if(o1.getLeft() > o2.getLeft())
+				return 1;
+			else {
+				if(o1.getMiddle() < o2.getMiddle())
+					return -1;
+				if(o1.getMiddle() > o2.getMiddle())
+					return 1;
+				else {
+					if(o1.getRight() < o2.getRight())
+						return -1;
+					else if(o1.getRight() > o2.getRight())
+						return 1;
+					else return 0;
+				}
+			}
+		}
+		
+	}
+	
 	public void sort(String infile, String outfile, String tmpdir, int blocksize, int nblocks) throws IOException {
 		// complete the method
+		
 		infile = URLDecoder.decode(infile, "UTF-8");
 		outfile = URLDecoder.decode(outfile, "UTF-8");
-		
+
 		File tmpfile = new File(tmpdir);
 		File file = new File(infile);
-		File initfile = new File(tmpdir+"/init");
+		File initfile = new File(tmpdir + "/init");
 			
 		tmpfile.mkdir();
 		initfile.mkdir();
@@ -33,215 +72,146 @@ public class TinySEExternalSort implements ExternalSort {
 				)
 			);
 		
-		int blockNum = (int) Math.ceil((float)file.length() / blocksize);
-		int fileNum = (int) Math.ceil((float)blockNum / nblocks);
-		int intblocks = blocksize/4;
+		File tmpFile;
+		String runs;
+		DataOutputStream tmpOs;
+		triplesort ts = new triplesort();
+		ArrayList< Triple<Integer,Integer,Integer> > list = new ArrayList< Triple<Integer,Integer,Integer> >();
 		
-		try {
-			for(int index = 0; index < fileNum; ++index) {
-				String runs =  tmpdir + "/init/runs_" + (index < 10 ? "0" + index : index) + ".data";
-				File tmpFile = new File(runs);
-				DataOutputStream tmpOs = new DataOutputStream( new BufferedOutputStream (
-							new FileOutputStream(tmpFile), blocksize)
-						);
-				
-				List< Triple<Integer,Integer,Integer> > list = 
-						new ArrayList< Triple<Integer,Integer,Integer> >();
-				
-				for(int j=0; j<nblocks; ++j) {
-					for(int i = 0; i<intblocks/3; ++i) {
-						if(is.available() > 0)
-							list.add(readTripleInt(is));
-					}
-				}
-				
-				list.sort(new Comparator< Triple<Integer,Integer,Integer> >() {
+		int entryCnt = blocksize / 12;
+		blocksize = entryCnt * 12;
+		int entryCntBlock = entryCnt * nblocks / 12;
+		int maxListTriple = (2048/12) * 1000;
+		
+		if(entryCntBlock > maxListTriple)
+		{ entryCntBlock = maxListTriple; }
 
-					@Override
-					public int compare(Triple<Integer, Integer, Integer> o1, Triple<Integer, Integer, Integer> o2) {
-						if(o1.getLeft() < o2.getLeft())
-							return -1;
-						else if(o1.getLeft() > o2.getLeft())
-							return 1;
-						else {
-							if(o1.getMiddle() < o2.getMiddle())
-								return -1;
-							if(o1.getMiddle() > o2.getMiddle())
-								return 1;
-							else {
-								if(o1.getRight() < o2.getRight())
-									return -1;
-								else if(o1.getRight() > o2.getRight())
-									return 1;
-								else return 0;
-							}
-						}
-					}
-				});
-				
-				for(Triple<Integer,Integer,Integer> e : list) {
-					tmpOs.writeInt(e.getLeft());
-					tmpOs.writeInt(e.getMiddle());
-					tmpOs.writeInt(e.getRight());
-				}
-				
-				tmpOs.flush();
-				tmpOs.close();
+		int fileNum = (int) (file.length() / (entryCntBlock*12)) + 1;
+		Long fileSize = file.length();
+		
+		for(int index = 0; index < fileNum; ++index) {
+			runs =  tmpdir + "/init/runs_" + (index < 10 ? "0" + index : index) + ".data";
+			tmpFile = new File(runs);
+			tmpOs = new DataOutputStream(
+						new BufferedOutputStream (
+								new FileOutputStream(tmpFile), blocksize
+						)
+					);
+			
+			for(int cnt = 0; cnt < entryCntBlock && fileSize > 0; ++cnt,fileSize -= 12){
+				list.add(
+					Triple.of(is.readInt(), is.readInt(), is.readInt())
+				);
 			}
-		} catch (Exception e) {
-			e.getStackTrace();
+			
+			list.sort(ts);
+			
+			for(Triple<Integer,Integer,Integer> e : list) {
+				tmpOs.writeInt(e.getLeft());
+				tmpOs.writeInt(e.getMiddle());
+				tmpOs.writeInt(e.getRight());
+			}
+			
+			tmpOs.flush();
+			tmpOs.close();
+			
+			list.clear();
+			System.gc();
 		}
 		
-		try {
-			mergingAll(fileNum, blocksize, nblocks, tmpdir, outfile);
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		mergingAll(fileNum, blocksize, nblocks, tmpdir, outfile);
 		
 		is.close();
 	}
 	
-	public Triple<Integer, Integer, Integer> readTripleInt(DataInputStream is) throws IOException {
-		
-		Triple<Integer, Integer, Integer> ret = null;
-		
-		try {
-			ret = Triple.of(is.readInt(), is.readInt(), is.readInt());
-		} catch (EOFException e) {
-			e.getStackTrace();
-		}
-		
-		return ret;
-	}
 
-	public void twoWayMerge(int blocksize, int nblocks, String first, String second, String out) throws Exception {
+	public void mergingAll(int runsCount, int blocksize, int nblocks , String tmpdir, String outfile) throws IOException {
 		
-		File firstFile = new File(first);
-		File secondFile = new File(second);
-		File outFile = new File(out);
+		int nextWayNum;
+		List<String> list = new ArrayList<String>();
 		
-		DataOutputStream os = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(outFile), blocksize));
-		DataInputStream firIS = new DataInputStream(new BufferedInputStream(new FileInputStream(firstFile), blocksize));
-		
-		PriorityQueue<Pair<Triple<Integer, Integer, Integer>, Integer> > list = new PriorityQueue<Pair< Triple<Integer, Integer, Integer>, Integer>>();
-		
-		if(secondFile.exists()) {
-			DataInputStream secIS = new DataInputStream(new BufferedInputStream(new FileInputStream(secondFile), blocksize));
+		for(int pre = runsCount, nextFileNum = 0, step = 0; pre > 1; nextFileNum = 0, step++) {
 			
-			try {
-				int count = blocksize/12;
-				int fircount = count;
-				int seccount = count;
+			int nowRuns = pre;
+			int out_idx = 0;
+			int stackFileNum = 0;
+			
+			File stepdir = new File(tmpdir + "/" + (step+1));
+			stepdir.mkdir();
+			
+			while(pre > 0) {
+				nextWayNum = nblocks-1;
 				
-				for(int j=0; j<count; j++) {
-						list.add(Pair.of(readTripleInt(firIS), 1));
-						list.add(Pair.of(readTripleInt(secIS), 2));
-				}
+				if(pre < nextWayNum) nextWayNum = pre;
 				
-				while(!list.isEmpty() && fircount != 0 && seccount != 0)
-				{
-					Pair<Triple<Integer, Integer, Integer>, Integer> temp = list.poll();
-					
-					if(temp.getRight() == 1) {
-						fircount--;
-						if(firIS.available() > 0) {
-							list.add(Pair.of(readTripleInt(firIS), 1));
-							fircount++;
-						}
-					}
-					else {
-						seccount--;
-						if(secIS.available() > 0) {
-							list.add(Pair.of(readTripleInt(secIS), 2));
-							seccount++;
-						}
-					}
-					
-					os.writeInt(temp.getLeft().getLeft());
-					os.writeInt(temp.getLeft().getMiddle());
-					os.writeInt(temp.getLeft().getRight());
-				}
-				os.flush();
+				for(int idx = 0; idx < nextWayNum; idx++)
+					list.add(tmpdir + "/" + (step == 0 ? "init" : step )  + "/runs_" + ((idx + stackFileNum) < 10 ? "0" : "") + (idx + stackFileNum) + ".data");
 				
-			} catch (EOFException e) {
-				e.getStackTrace();
+				String out = tmpdir + "/" + (step+1) + "/runs_" + (out_idx < 10 ? "0" : "") + (out_idx++) + ".data";
+				
+				if(nowRuns == nextWayNum)
+					out = outfile;
+				
+				nextFileNum++;
+				stackFileNum += nextWayNum;
+				pre -= nextWayNum;
+				
+				NWayMerge(blocksize, nblocks, list, out);
+				list.clear();
 			}
 			
-			secIS.close();
-		} else {
+			pre = nextFileNum;
 			
-			try {
-				int count = blocksize/12;
-				
-				int fircount = count;
-					
-				for(int j=0; j<count; j++)
-					list.add(Pair.of(readTripleInt(firIS),1));
-				
-				while(!list.isEmpty() && fircount != 0) {
-					Pair< Triple<Integer, Integer, Integer>, Integer> temp = list.poll();
-					
-					fircount--;
-					
-					if(firIS.available() > 0) {
-						fircount++;
-						list.add(Pair.of(readTripleInt(firIS), 1));
-					}
-					
-					os.writeInt(temp.getLeft().getLeft());
-					os.writeInt(temp.getLeft().getMiddle());
-					os.writeInt(temp.getLeft().getRight());
-				}
-				
-				os.flush();
-				list.clear();
-				
-			} catch (EOFException e) {
-				e.getStackTrace();
+		}
+		
+	}
+	
+	public void NWayMerge(int blocksize, int nblocks, List<String> input, String out) throws IOException {
+		
+		File outfile = new File(out);
+		PriorityQueue<Tuple> pq = new PriorityQueue<Tuple>();
+		HashMap<Integer, Pair<DataInputStream, Long>> islist = new HashMap<Integer, Pair<DataInputStream, Long>>();
+		DataOutputStream os = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(outfile), blocksize));
+		
+		File tmpfile;
+		String fileName;
+		DataInputStream tempis;
+		int inputSize = input.size();
+		for(int index = 0; index < inputSize; index++) {
+			fileName = input.get(index);
+			tmpfile = new File(fileName);
+			
+			if(tmpfile.exists()) {
+				tempis = new DataInputStream(new BufferedInputStream(new FileInputStream(tmpfile), blocksize));
+				pq.add(new Tuple(Triple.of(tempis.readInt(), tempis.readInt(), tempis.readInt()), index));
+				islist.put(index, Pair.of(tempis, tmpfile.length()-12));
 			}
 		}
 		
-		firIS.close();
+		Tuple tempTuple;
+		while(!pq.isEmpty()) {
+			
+			tempTuple = pq.poll();
+			
+			os.writeInt(tempTuple.X.getLeft());
+			os.writeInt(tempTuple.X.getMiddle());
+			os.writeInt(tempTuple.X.getRight());
+			
+			if(islist.containsKey(tempTuple.idx) && islist.get(tempTuple.idx).getRight() > 0) {
+				tempTuple.setTuple(
+						Triple.of(
+								islist.get(tempTuple.idx).getLeft().readInt(),
+								islist.get(tempTuple.idx).getLeft().readInt(),
+								islist.get(tempTuple.idx).getLeft().readInt()
+						)
+				);
+				islist.replace(tempTuple.idx, Pair.of(islist.get(tempTuple.idx).getLeft(), islist.get(tempTuple.idx).getRight() - 12));
+				pq.add(tempTuple);
+			}
+		}
+		
+		os.flush();
 		os.close();
 	}
-	
-	public void mergingAll(int runsCount, int blocksize, int nblocks , String tmpdir, String outfile) throws Exception {
-		
-		int nfirstRuns = (int) Math.ceil((double)runsCount/2);
-		for(int index = nfirstRuns, preidx = runsCount; index > 0 && preidx > 1; preidx=index,index = (int) Math.ceil((double)index/2)) {
-			String passdir = tmpdir + "/" + index;
-			File pass = new File(passdir);
-			pass.mkdir();
-			
-			for(int runs = 0; runs < index; runs++) {
-				String predir = (preidx == runsCount) ? "/init" : ("/" + preidx);
-				String postdir1 = "/runs_" + (runs * 2 < 10 ? "0" + (runs*2) : runs*2) + ".data";
-				String postdir2 = "/runs_" + (runs * 2 + 1 < 10 ? "0" + (runs*2 + 1) : (runs*2 + 1)) + ".data";
-				
-				String out = passdir + "/runs_" + (runs < 10 ? "0" + runs : runs) + ".data";
-				String first = tmpdir + predir + postdir1;
-				String second = tmpdir + predir + postdir2;
-				
-				if(index > 1)
-				{ twoWayMerge(blocksize, nblocks, first, second, out); }
-				else twoWayMerge(blocksize, nblocks, first, second, outfile);
-			}
-		}
-	}
-	
-	public void readPrint(DataInputStream is) throws IOException {
-		
-		try {
-			int left; int mid = 0; int right = 0;
-			while(is.available() > 0) {
-				left = is.readInt();
-				mid = is.readInt();
-				right = is.readInt();
-				System.out.println(left+", "+mid+", "+right);
-			}
-		} catch (EOFException e) {
-			e.getStackTrace();
-		}
-	}
+
 }
