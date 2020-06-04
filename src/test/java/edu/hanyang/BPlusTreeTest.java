@@ -24,7 +24,7 @@ public class BPlusTreeTest {
  
 		File treefile = new File(savepath);
 		File metafile = new File(metapath);
-		/*
+
 		if (treefile.exists()) {
 			if ( !treefile.delete()) {
 				System.err.println("error: cannot remove tree file");
@@ -36,7 +36,7 @@ public class BPlusTreeTest {
 				System.err.println("error: cannot remove meta file");
 				System.exit(1);
 			}
-		}*/
+		}
 
 		TinySEBPlusTree tree = new TinySEBPlusTree();
 		tree.open(metapath, savepath, blocksize, nblocks);
