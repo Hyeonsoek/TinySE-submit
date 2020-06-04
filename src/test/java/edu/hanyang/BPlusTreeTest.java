@@ -24,18 +24,19 @@ public class BPlusTreeTest {
  
 		File treefile = new File(savepath);
 		File metafile = new File(metapath);
+		/*
 		if (treefile.exists()) {
-			if (! treefile.delete()) {
+			if ( !treefile.delete()) {
 				System.err.println("error: cannot remove tree file");
 				System.exit(1);
 			}
 		}
 		if (metafile.exists()) {
-			if (! metafile.delete()) {
+			if ( !metafile.delete()) {
 				System.err.println("error: cannot remove meta file");
 				System.exit(1);
 			}
-		}
+		}*/
 
 		TinySEBPlusTree tree = new TinySEBPlusTree();
 		tree.open(metapath, savepath, blocksize, nblocks);
@@ -86,7 +87,6 @@ public class BPlusTreeTest {
 		tree.close();
 	}
 
-	@Test
 	public void bPlusTreeTestWithLargeFile() throws IOException {
 		String metapath = "./tmp/bplustree.meta";
 		String savepath = "./tmp/bplustree.tree";
